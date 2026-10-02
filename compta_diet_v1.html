@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#176b63">
+<title>Compta Diet</title>
+<style>
+:root{--bg:#f4f7f5;--card:#fff;--ink:#17332f;--muted:#70807c;--accent:#176b63;--accent2:#dff1ed;--danger:#b94b4b;--shadow:0 8px 25px #17332f12}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Arial,sans-serif}
+header{background:linear-gradient(135deg,#176b63,#2b8b7f);color:white;padding:28px 18px 22px;border-radius:0 0 28px 28px}
+header h1{margin:0;font-size:28px}header p{margin:5px 0 0;opacity:.82}
+main{max-width:900px;margin:auto;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.card{background:var(--card);border-radius:18px;padding:16px;box-shadow:var(--shadow)}.metric{font-size:24px;font-weight:800;margin-top:6px}.label{font-size:12px;color:var(--muted)}
+section{margin:16px 0}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.toolbar>*{flex:1;min-width:130px}
+button,select,input{font:inherit;border-radius:12px;border:1px solid #d9e2df;padding:11px;background:white;color:var(--ink)}button{cursor:pointer}.primary{background:var(--accent);color:#fff;border:0;font-weight:700}.danger{color:var(--danger)}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 7px;border-bottom:1px solid #edf1ef;font-size:14px}th{color:var(--muted);font-size:12px}
+.form{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px}
+canvas{width:100%;height:240px;background:white;border-radius:18px;padding:8px;box-shadow:var(--shadow)}
+@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}.form{grid-template-columns:1fr 1fr}.form button{grid-column:1/-1}th:nth-child(2),td:nth-child(2){display:none}}
+</style>
+</head>
+<body>
+<header><h1>🌿 Compta Diet</h1><p>Suivi simple de l’activité et du chiffre d’affaires</p></header>
+<main>
+<section class="grid">
+<div class="card"><div class="label">CA brut</div><div id="gross" class="metric">0 €</div></div>
+<div class="card"><div class="label">Frais paiement</div><div id="payfees" class="metric">0 €</div></div>
+<div class="card"><div class="label">Location</div><div id="rent" class="metric">0 €</div></div>
+<div class="card"><div class="label">CA net</div><div id="net" class="metric">0 €</div></div>
+</section>
+
+<section class="card">
+<div class="toolbar">
+<select id="month"></select><select id="year"></select>
+<button class="primary" onclick="addConsult()">＋ Ajouter une consultation</button>
+</div>
+</section>
+
+<section class="card">
+<h3>Ajouter une consultation</h3>
+<div class="form">
+<input id="date" type="date">
+<select id="type"><option value="50">Bilan diététique — 50 €</option><option value="40">Consultation de suivi — 40 €</option></select>
+<select id="payment"><option value="card">Carte bancaire — 1,7 %</option><option value="link">Lien de paiement — 1,4 %</option><option value="cash">Espèce — 0 %</option></select>
+<input id="note" placeholder="Note (facultatif)">
+<button class="primary" onclick="saveConsult()">Enregistrer</button>
+</div>
+</section>
+
+<section><canvas id="chart"></canvas></section>
+
+<section class="card">
+<h3>Consultations du mois</h3>
+<div style="overflow:auto"><table><thead><tr><th>Date</th><th>Facture</th><th>Type</th><th>Paiement</th><th>Montant</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+</section>
+
+<section class="card">
+<h3>Sauvegarde</h3>
+<div class="toolbar"><button onclick="exportData()">💾 Exporter</button><label><input type="file" accept=".json" onchange="importData(event)"> 📥 Restaurer</label></div>
+</section>
+</main>
+<script>
+const KEY='comptaDietV1', data=JSON.parse(localStorage.getItem(KEY)||'{"items":[],"seq":{}}');
+const months=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const euro=n=>n.toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+const d=new Date(), y=d.getFullYear();
+for(let i=0;i<12;i++)month.innerHTML+=`<option value="${i}">${months[i]}</option>`;
+for(let i=y-3;i<=y+1;i++)year.innerHTML+=`<option>${i}</option>`;
+month.value=d.getMonth();year.value=y;date.valueAsDate=d;
+month.onchange=render;year.onchange=render;
+
+function invoiceNumber(date){
+ const yr=new Date(date).getFullYear(); data.seq[yr]=(data.seq[yr]||0)+1; save();
+ return String(yr)+String(data.seq[yr]).padStart(4,'0');
+}
+function saveConsult(){
+ const dt=date.value;if(!dt)return alert('Choisis une date.');
+ const item={id:crypto.randomUUID(),date:dt,amount:+type.value,type:+type.value===50?'Bilan diététique':'Consultation de suivi',payment:payment.value,note:note.value,invoice:invoiceNumber(dt)};
+ data.items.push(item);save();note.value='';render();
+}
+function addConsult(){document.querySelector('#date').focus()}
+function del(id){if(confirm('Supprimer cette consultation ?')){data.items=data.items.filter(x=>x.id!==id);save();render()}}
+function paymentName(p){return p==='card'?'CB':'Lien'}
+function fees(x){return x.amount*(x.payment==='card'?.017:x.payment==='link'?.014:0)}
+function rentFor(items){const fridays=new Set(items.filter(x=>new Date(x.date+'T12:00').getDay()===5).map(x=>x.date));return fridays.size*20}
+function render(){
+ const yy=+year.value, mm=+month.value;
+ const items=data.items.filter(x=>{const q=new Date(x.date+'T12:00');return q.getFullYear()===yy&&q.getMonth()===mm}).sort((a,b)=>a.date.localeCompare(b.date));
+ const gross=items.reduce((s,x)=>s+x.amount,0), pf=items.reduce((s,x)=>s+fees(x),0), rent=rentFor(items);
+ document.querySelector('#gross').textContent=euro(gross);document.querySelector('#payfees').textContent=euro(pf);document.querySelector('#rent').textContent=euro(rent);document.querySelector('#net').textContent=euro(gross-pf-rent);
+ rows.innerHTML=items.map(x=>`<tr><td>${new Date(x.date+'T12:00').toLocaleDateString('fr-FR')}</td><td>${x.invoice}</td><td>${x.type}</td><td>${paymentName(x.payment)}</td><td>${euro(x.amount)}</td><td><button class="danger" onclick="del('${x.id}')">Suppr.</button></td></tr>`).join('')||'<tr><td colspan="6">Aucune consultation.</td></tr>';
+ drawChart(yy);
+}
+function drawChart(yy){
+ const c=chart,ctx=c.getContext('2d'),dpr=devicePixelRatio||1,w=c.clientWidth,h=240;c.width=w*dpr;c.height=h*dpr;ctx.scale(dpr,dpr);ctx.clearRect(0,0,w,h);
+ const vals=months.map((_,m)=>data.items.filter(x=>{let q=new Date(x.date+'T12:00');return q.getFullYear()===yy&&q.getMonth()===m}).reduce((s,x)=>s+x.amount-fees(x),0));
+ const max=Math.max(100,...vals), left=35,bottom=30,top=18,gw=w-left-12,gh=h-top-bottom;
+ ctx.strokeStyle='#dfe8e5';ctx.lineWidth=1;for(let i=0;i<5;i++){let yy2=top+gh*i/4;ctx.beginPath();ctx.moveTo(left,yy2);ctx.lineTo(w-10,yy2);ctx.stroke()}
+ ctx.strokeStyle='#176b63';ctx.lineWidth=3;ctx.beginPath();vals.forEach((v,i)=>{let x=left+i*gw/11,y=top+gh-(v/max)*gh;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();
+ ctx.fillStyle='#70807c';ctx.font='11px -apple-system';vals.forEach((v,i)=>{let x=left+i*gw/11,y=top+gh-(v/max)*gh;ctx.beginPath();ctx.arc(x,y,3,0,7);ctx.fill();ctx.fillText(months[i].slice(0,3),x-8,h-8)});
+ ctx.fillStyle='#17332f';ctx.font='bold 13px -apple-system';ctx.fillText('CA net mensuel '+yy,12,14);
+}
+function exportData(){const blob=new Blob([JSON.stringify(data)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sauvegarde-compta-diet.json';a.click()}
+function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.items||!x.seq)throw 0;data.items=x.items;data.seq=x.seq;save();render();alert('Sauvegarde restaurée.')}catch{alert('Fichier de sauvegarde invalide.')}};r.readAsText(f)}
+render();
+</script>
+</body></html>
